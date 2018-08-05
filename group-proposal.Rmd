@@ -3,10 +3,7 @@ title: "Exploring the World of Cryptocurrency"
 subtitle: "Predicting Bitcoin Prices with Multiple Linear Regression"
 date: '07/16/2018'
 author:
-- "Joseph Bajin (NetID : jbaji2)"
-- "Jacob Rettig (NetID : jrettig2)"
-- "Yash Lakhani (NetID : yashl3)"
-- "Brad Ballard (NetID : bjb3)"
+- "Me"
 output: 
   html_document:
     toc: yes
