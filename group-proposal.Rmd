@@ -1,0 +1,122 @@
+---
+title: "Exploring the World of Cryptocurrency"
+subtitle: "Predicting Bitcoin Prices with Multiple Linear Regression"
+date: '07/16/2018'
+author:
+- "Joseph Bajin (NetID : jbaji2)"
+- "Jacob Rettig (NetID : jrettig2)"
+- "Yash Lakhani (NetID : yashl3)"
+- "Brad Ballard (NetID : bjb3)"
+output: 
+  html_document:
+    toc: yes
+  pdf_document: default
+urlcolor: cyan
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(Quandl)
+library(readr)
+Quandl.api_key("esqkikVR6svTWMGWBWgv")
+```
+
+## Overview
+
+The world of cryptocurrencies is currently unconquered territory for the experienced investor and the well cited academic alike. It is still seen as a speculative asset, but this is under the assumption that we cannot pinpoint underlying theoretical properties that drive Bitcoin's value.  
+
+Our aim for this project is to be able to predict within a reasonable amount of confidence the price of Bitcoin. Many see Bitcoin as an asset class that is bought when the market is bearish. This is analogous to how Gold and other commodities are utilized, as a 'safe haven' asset also known as a hedge. Data Points are collected to measure different aspects of the economy that express current market conditions. Using these data points, a model to predict the price of Bitcoin will be trained and then we aim to run our model against a test set to see how it performs.
+
+We want to present our attempt at quashing those 'safe haven' assumptions within a multiple linear regression framework. The keys will be in understanding our variables, and performing initial diagnostics. We will be focussing on macroeconomic variables as well indicators from financial markets. We expect data to contain shocks, but we want to retain such information. However, we are combining multiple data sources we do expect few highly influential data points that may need to be removed.
+
+The more critical juncture will be our residual diagnostics, as checking our linearity, normality and homoscedasticity assumptions and the colinearity of our variables will be crucial to determining whether our model will have variability in it's predictive ability. This may demand transformations such as logarithm and polynomials.
+
+Finally, we may expand our model through interactions of our predictors and apply model selection techniques utilising metrics such as Adjusted $R^2$, LOOCV $RMSE$, AIC and BIC to penalize for overly large models. We want to have a model interpretable whilst still providing enough predictive power to make it relevant.
+
+
+## Description of the dataset
+
+```{r, echo=FALSE}
+library(knitr)
+
+variables = c("bitcoin_usd",
+              "10yrbond", 
+              "vix_close",
+              "spy_close",
+              "gld_close",
+              "usd_chf",
+              "usd_jpy",
+              "usd_gbp",
+              "usd_eur",
+              "bitcoin_hash")
+
+types = rep("numerical", length(variables))
+types[1] = "numerical(response)"
+description = c('Exchange Rate of Bitcoin (BTC) to USD', 'Yield of US 10 Year Treasury Bond', 'Closing CBOE Volatility Index (Volatility Implied by S&P 500 Index Options)', 'Closing Price of S&P500 Index (Market Proxy)', 'Closing Price of Gold', 'USD and Swiss Franc (CHF) Exchange Rate', 'USD and Japanese Yen (JPY) Exchange Rate', 'USD and Pound (GBP) Exchange Rate', 'USD and Euro (EUR) Exchange Rate', 'Current Bitcoin Hash Rate')
+
+kable(data.frame(Variables=variables, Type=types, Description=description))
+```
+
+We highlight the importance of using an exchange rate of USD and Bitcoin BITFINEX/BTCUSD and including USD Foreign Exchange rates. There may be an issue of causality versus correlation, but we want to measure the effect of other countries by simply using exchange rate, as our BTC price is quoted as an Exchange Rate to USD. Most of our variables should be pegged to USD, such as closing Gold price.
+
+We have included macroeconomic variables such as a risk free rate in the form of our 10 Year Treasury Bond Yield (US) and something on the other end of the spectrum of volatility, VIX shall give us an idea of implied volatility of the financial markets which may give us our demand side analysis. Including a Bitcoin hash rate allows us to understand the trend of the computing ability and how it will affect the supply dynamics for Bitcoin.
+
+Overall, we have chosen our predictors using our economic intuition but now we would like to apply our statistical intuition given our skillset built over the course of STAT 420.  
+
+## Background information on the dataset
+
+We wanted to include a variety of different predictors, not only to meet criteria but to also allow for vaster model selection to increase our predictive power.
+
+Therefore, the data has been obtained from multiple sources. Quandl provides good integration within R, however the limitations are that some predictors were within Premium datasets. Hence, we have used others sources.The datasets for `GLD` and `SPY` were obtained from Yahoo! We have done this by developing Python code exploiting the library of APIs and then writing it to a file. This bridged a gap between our data sources in order to combine it all within R.
+
+The remainder was obtained from the Quandl (R) module. Our multiple different sources included the `Bank of England`, `United States Department of Treasury`, `Chicago Board Options Exchange`, and `Bitcoin`.  More information about Quandl data sources can be found at the [Quandl Website](https://www.quandl.com/search?filters=%5B%22Free%22%5D).
+
+All time periods for this data were aligned for *January 1st, 2016* through *July 1st, 2018*.  
+
+## Interest in topic
+
+The formation of our group hinged upon our interest in economics and finance, as well as our collective academic and/or professional experience in these fields.
+
+We wanted to stay away from financial models that have been heavily documented in order to keep this as an exploratory data analysis task. This allows for greater excitement if we are able to discover a 'useful' model since Bitcoin is highly relevant and unpredictable today.
+
+Equipped with the knowledge gained over the semester, we feel well prepared in order to understand how a predictive model is used by financial analysts and is a major driving force for our interest, given a relatively novel and volatile market of cryptocurrency. In addition to this, we hope that each member of the group can use our findings outside this class as well. Whether it is for professional or personal use, we can utilize our findings from this project regardless of whether it is revolutionary or simply an interesting conversation over a summer cocktail.
+
+Our inspiration comes from an Economics paper, citing from the Universitat de Barcelona : [Exploring the determinants of Bitcoin’s price: an application of Bayesian Structural Time Series](https://arxiv.org/pdf/1706.01437.pdf).  This paper broke down a lot of the pure concepts that allowed us to bring together the concepts we learned as well as provide background information to understand how these models are determined.
+
+## Evidence of the Data
+Included below is how the data from multiple sources is captured and then transformed into the final dataset that is used for creating models.  It includes column renames as well as merging of different data to get to the finalized solution.
+
+
+```{r, message = FALSE, warning = FALSE}
+bonds = Quandl("USTREASURY/YIELD",start_date="2016-01-01", end_date="2018-07-01")
+bitcoin=Quandl("BITFINEX/BTCUSD", start_date="2016-01-01", end_date="2018-07-01")
+vix = Quandl("CBOE/VIX", start_date="2016-01-01", end_date="2018-07-01")
+bitcoin_hash = Quandl("BCHAIN/HRATE", start_date="2016-01-01", end_date="2018-07-01")
+spy = read_csv("spy.csv")
+gld = read_csv("gld.csv")
+## Currency Pairs
+currency_pairs = c("BOE/XUDLSFD","BOE/XUDLJYD","FRED/DEXUSUK","FRED/DEXUSEU")
+currency = Quandl(currency_pairs, start_date="2016-01-01", end_date="2018-07-01")
+bonds = subset(bonds, select = c("Date","10 YR"))
+bitcoin = subset(bitcoin, select = c("Date","Last"))
+vix = subset(vix, select = c("Date","VIX Close"))
+spy = subset(spy, select = c("Date","Close"))
+gld = subset(gld, select = c("Date","Close"))
+colnames(bonds)[2] = "10yrbond"
+colnames(bitcoin)[2] = "bitcoin_usd"
+colnames(vix)[2] = "vix_close"
+colnames(spy)[2] = "spy_close"
+colnames(gld)[2] = "gld_close"
+colnames(currency)[2] = "usd_chf"
+colnames(currency)[3] = "usd_jpy"
+colnames(currency)[4] = "usd_gbp"
+colnames(currency)[5] = "usd_eur"
+colnames(bitcoin_hash)[2] = "bitcoin_hash"
+merge1 = merge(bonds, bitcoin, by="Date")
+merge2 = merge(vix, spy, by="Date")
+merge3 = merge(gld, currency, by="Date")
+merge4 = merge(merge3, bitcoin_hash, by="Date")
+merge5 = merge(merge2, merge1, by="Date")
+data = merge(merge4, merge5, by="Date")
+head(data)
+
+```
